@@ -220,7 +220,6 @@ export default function RemanenceGame({
     bouquetCollected: 0,
     bouquetsTied: 0,
     bouquetPulse: 0,
-    bouquetBlossoms: [] as { hue: HueName; cherished: boolean; born: number }[],
   })
 
   // ---- weighted species pick for the active contrée ---------------------
@@ -331,7 +330,6 @@ export default function RemanenceGame({
     g.bouquetCollected = 0
     g.bouquetsTied = 0
     g.bouquetPulse = 0
-    g.bouquetBlossoms = []
     awakenNext()
   }, [pickSpecies])
 
@@ -444,7 +442,6 @@ export default function RemanenceGame({
     spawnDissolve(g.wisp, "rose", 30)
     g.bouquetIdx++
     g.bouquetCollected = 0
-    g.bouquetBlossoms = []
   }, [])
 
   const prelever = useCallback(
@@ -485,11 +482,6 @@ export default function RemanenceGame({
       const recipe = currentBouquet()
       if (!recipe.species || recipe.species === hit.species) {
         g.bouquetCollected++
-        g.bouquetBlossoms.push({
-          hue: hit.cherished ? "rose" : def.hue,
-          cherished: hit.cherished,
-          born: g.time,
-        })
         if (g.bouquetCollected >= recipe.need) tieBouquet()
       }
 
@@ -913,7 +905,7 @@ export default function RemanenceGame({
         communion: g.communion,
         bestCommunion: g.bestCommunion,
         luce: g.luce,
-        bouquet: { nom: recipe.nom, collected: g.bouquetCollected, need: recipe.need, tied: g.bouquetsTied, blossoms: g.bouquetBlossoms.length },
+        bouquet: { nom: recipe.nom, collected: g.bouquetCollected, need: recipe.need, tied: g.bouquetsTied },
         glowing: g.flowers
           .filter((m) => m.state === "glowing")
           .map((m) => ({
@@ -1382,63 +1374,29 @@ function drawHUD(ctx: CanvasRenderingContext2D, g: ReturnType<typeof gameShape>)
   ctx.fillStyle = "rgba(255,178,92,0.4)"
   ctx.fillText("ÉCLATS", w - 64, 42)
 
-  // Bouquet — bottom-left. Gathered blossoms compose a real fanned posy that
-  // grows as you cueille; a binding band traces recipe progress.
+  // Bouquet progress ring — bottom-left
   const recipe = BOUQUETS[g.bouquetIdx % BOUQUETS.length]
-  const cxp = 48
-  const cyp = h - 78
+  const cxp = 42
+  const cyp = h - 70
+  const rr = 22
   const frac = clamp(g.bouquetCollected / recipe.need, 0, 1)
-  const blossoms = g.bouquetBlossoms
-  const n = blossoms.length
-
-  // bound stems converging at a tie-point below the heads
-  const tieX = cxp
-  const tieY = cyp + 22
-  const fan = Math.min(Math.PI * 0.92, 0.42 + n * 0.12) // spread widens with count
-  const stemLen = 26
-  for (let i = 0; i < n; i++) {
-    const b = blossoms[i]
-    const a = n === 1 ? -Math.PI / 2 : -Math.PI / 2 + (i / (n - 1) - 0.5) * fan
-    const grow = clamp((g.time - b.born) * 5, 0, 1) // each blossom blooms in
-    const hx = tieX + Math.cos(a) * stemLen * grow
-    const hy = tieY + Math.sin(a) * stemLen * grow
-    const rgb = hueRGB(b.hue)
-    // stem
-    ctx.strokeStyle = `rgba(${RGB.verdant}, ${0.28 * grow})`
-    ctx.lineWidth = 1.2
-    ctx.beginPath()
-    ctx.moveTo(tieX, tieY)
-    ctx.quadraticCurveTo((tieX + hx) / 2, (tieY + hy) / 2 - 3, hx, hy)
-    ctx.stroke()
-    // blossom head
-    const r = (b.cherished ? 5.5 : 4.2) * grow
-    glowDot(ctx, hx, hy, r + 2, rgb, 0.4 * grow)
-    ctx.fillStyle = `rgba(${rgb}, ${0.92 * grow})`
-    ctx.beginPath()
-    ctx.arc(hx, hy, r, 0, Math.PI * 2)
-    ctx.fill()
-    if (b.cherished) {
-      ctx.fillStyle = `rgba(255,236,200,${0.9 * grow})`
-      ctx.beginPath()
-      ctx.arc(hx, hy, r * 0.4, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }
-
-  // binding band at the tie-point — its glow tracks progress / pulse
-  const bandGlow = 0.45 + frac * 0.4 + g.bouquetPulse * 0.5
-  glowDot(ctx, tieX, tieY, 8 + g.bouquetPulse * 10, RGB.rose, Math.min(1, bandGlow * 0.5))
-  ctx.strokeStyle = `rgba(${RGB.rose}, ${Math.min(1, bandGlow)})`
+  ctx.strokeStyle = "rgba(232,178,192,0.18)"
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(cxp, cyp, rr, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = `rgba(${RGB.rose}, ${0.6 + g.bouquetPulse * 0.4})`
   ctx.lineWidth = 2.4
   ctx.beginPath()
-  ctx.arc(tieX, tieY, 6, 0, Math.PI * 2)
+  ctx.arc(cxp, cyp, rr, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac)
   ctx.stroke()
-
-  // label
   ctx.textAlign = "center"
+  ctx.font = "300 12px var(--font-geist-mono, monospace)"
+  ctx.fillStyle = "rgba(232,240,255,0.7)"
+  ctx.fillText(`${g.bouquetCollected}/${recipe.need}`, cxp, cyp + 4)
   ctx.font = "300 9px var(--font-geist-sans, sans-serif)"
-  ctx.fillStyle = "rgba(232,178,192,0.55)"
-  ctx.fillText(`${recipe.nom.toUpperCase()} · ${g.bouquetCollected}/${recipe.need}`, cxp, tieY + 16)
+  ctx.fillStyle = "rgba(232,178,192,0.5)"
+  ctx.fillText(recipe.nom.toUpperCase(), cxp, cyp + rr + 14)
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -1466,7 +1424,6 @@ function gameShape() {
     bouquetIdx: number
     bouquetCollected: number
     bouquetPulse: number
-    bouquetBlossoms: { hue: HueName; cherished: boolean; born: number }[]
   }
 }
 
